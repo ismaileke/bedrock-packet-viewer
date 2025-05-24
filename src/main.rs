@@ -1,5 +1,12 @@
 #![windows_subsystem = "windows"]
 
+
+// bedrock tool olabilir içinde packet viewer skin catcher pack catcher world catcher vs. gibi şeyler olabilir
+
+
+
+
+
 use iced::{
     widget::{button, column, container, row, text, Image, scrollable, text_input, Column},
     Application, Command, Element, Length, Settings, Theme, Background, Color, Vector, Subscription,
@@ -8,6 +15,7 @@ use iced::widget::canvas::{self, Cache, Canvas, Fill, Geometry, LineCap, Path, P
 use iced::mouse::Cursor;
 use bedrock_client::client;
 use std::sync::{Arc, Mutex};
+use iced::window::icon;
 
 // Embed logo file into the project
 const LOGO_BYTES: &[u8] = include_bytes!("assets/logo.png");
@@ -113,15 +121,15 @@ impl button::StyleSheet for ButtonStyle {
     type Style = Theme;
 
     fn active(&self, _style: &Self::Style) -> button::Appearance {
-        let base_color = if self.disabled {
-            // Disabled durumu için yarı saydam renk
+        let color = if self.disabled {
+            // Disabled durumunda yarı saydam arkaplan
             if self.theme == ThemeType::Dark {
                 Color::from_rgba(0.12, 0.15, 0.20, 0.5)
             } else {
                 Color::from_rgba(0.80, 0.82, 0.85, 0.5)
             }
         } else if self.is_selected {
-            // Seçili durum için daha parlak renk
+            // Normal selected durumu
             if self.theme == ThemeType::Dark {
                 Color::from_rgb(0.18, 0.21, 0.28)
             } else {
@@ -137,97 +145,53 @@ impl button::StyleSheet for ButtonStyle {
         };
 
         let border_color = if self.disabled {
-            Color::from_rgba(0.3, 0.3, 0.3, 0.5)
-        } else if self.is_selected {
-            // Seçili durumda hafif parlak border
+            // Disabled durumunda yarı saydam border
             if self.theme == ThemeType::Dark {
-                Color::from_rgba(0.4, 0.6, 0.9, 0.3)
+                Color::from_rgba(0.3, 0.3, 0.3, 0.5)
             } else {
-                Color::from_rgba(0.2, 0.4, 0.8, 0.3)
+                Color::from_rgba(0.7, 0.7, 0.7, 0.5)
             }
         } else {
+            // Normal durumda saydam border
             Color::TRANSPARENT
         };
 
         button::Appearance {
-            background: Some(Background::Color(base_color)),
+            background: Some(Background::Color(color)),
             border_radius: 12.0.into(),
             shadow_offset: Vector::new(0.0, if self.is_selected { 1.0 } else { 2.0 }),
             text_color: if self.disabled {
-                Color::from_rgb(0.5, 0.5, 0.5)
+                // Disabled durumunda daha soluk text rengi
+                if self.theme == ThemeType::Dark {
+                    Color::from_rgb(0.5, 0.5, 0.5)
+                } else {
+                    Color::from_rgb(0.7, 0.7, 0.7)
+                }
             } else if self.theme == ThemeType::Dark {
                 Color::WHITE
             } else {
                 Color::from_rgb(0.2, 0.2, 0.2)
             },
-            border_width: if self.disabled || self.is_selected { 1.0 } else { 0.0 },
+            border_width: if self.disabled { 1.0 } else { 0.0 },
             border_color,
         }
     }
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         let mut active = self.active(style);
-        
-        // Hover durumunda daha canlı renkler ve efektler
-        let hover_color = if self.disabled {
-            active.background.unwrap().into_linear_gradient().0
-        } else if self.is_selected {
+        active.background = Some(Background::Color(if self.is_selected {
             if self.theme == ThemeType::Dark {
-                Color::from_rgb(0.22, 0.25, 0.32)
+                Color::from_rgb(0.20, 0.23, 0.30)
             } else {
-                Color::from_rgb(0.92, 0.94, 0.98)
+                Color::from_rgb(0.90, 0.92, 0.97)
             }
+        } else if self.theme == ThemeType::Dark {
+            Color::from_rgb(0.17, 0.20, 0.27)
         } else {
-            if self.theme == ThemeType::Dark {
-                Color::from_rgb(0.18, 0.21, 0.28)
-            } else {
-                Color::from_rgb(0.88, 0.90, 0.94)
-            }
-        };
-
-        // Hover durumunda border efekti
-        let border_color = if self.disabled {
-            active.border_color
-        } else {
-            if self.theme == ThemeType::Dark {
-                Color::from_rgba(0.4, 0.6, 0.9, 0.5)
-            } else {
-                Color::from_rgba(0.2, 0.4, 0.8, 0.5)
-            }
-        };
-
-        active.background = Some(Background::Color(hover_color));
-        active.border_width = if self.disabled { 1.0 } else { 2.0 };
-        active.border_color = border_color;
-        active.shadow_offset = Vector::new(0.0, if self.is_selected { 2.0 } else { 3.0 });
-
-        // Hover durumunda metin rengini hafifçe değiştir
-        if !self.disabled {
-            active.text_color = if self.theme == ThemeType::Dark {
-                Color::from_rgb(0.95, 0.95, 1.0)
-            } else {
-                Color::from_rgb(0.1, 0.1, 0.1)
-            };
-        }
-
+            Color::from_rgb(0.82, 0.85, 0.90)
+        }));
+        active.shadow_offset = Vector::new(0.0, if self.is_selected { 2.0 } else { 4.0 });
         active
-    }
-
-    fn pressed(&self, style: &Self::Style) -> button::Appearance {
-        let mut hover = self.hovered(style);
-        
-        // Basılı durumda daha koyu renkler
-        let pressed_color = if self.theme == ThemeType::Dark {
-            Color::from_rgb(0.14, 0.17, 0.24)
-        } else {
-            Color::from_rgb(0.82, 0.84, 0.88)
-        };
-
-        hover.background = Some(Background::Color(pressed_color));
-        hover.shadow_offset = Vector::new(0.0, 0.0);
-        hover.border_width = 1.0;
-        
-        hover
     }
 }
 
@@ -522,7 +486,7 @@ impl Application for PacketViewer {
 
                 if let Ok(mut logs) = self.connection_logs.lock() {
                     logs.clear();
-                    logs.push("Bağlanılıyor...".to_string());
+                    logs.push("Connecting...".to_string());
                 }
                 
                 let server_ip = self.server_ip.clone();
@@ -535,7 +499,7 @@ impl Application for PacketViewer {
                         match client::create(
                             server_ip.clone(),
                             server_port,
-                            "1.21.70".to_string(),
+                            "1.21.80".to_string(),
                             false,
                             {
                                 let tx = tx.clone();
@@ -1680,6 +1644,7 @@ async fn main() -> iced::Result {
     settings.default_text_size = 16.0;
     settings.default_font = iced::Font::with_name("Minecraft");
 
+    // Sonra uygulamayı başlat
     let app = PacketViewer::run(settings);
 
 
