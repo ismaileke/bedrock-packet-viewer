@@ -371,7 +371,7 @@ impl Application for PacketViewer {
                 detail_height: 0.0,
                 active_menu: MenuType::Home,
                 theme: ThemeType::Dark,
-                server_ip: String::from("94.23.153.44"),
+                server_ip: String::from("127.0.0.1"),
                 server_port: String::from("19132"),
                 rgb_offset: 0.0,
                 connection_logs: Arc::new(Mutex::new(Vec::new())),
