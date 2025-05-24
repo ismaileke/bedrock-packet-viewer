@@ -11,7 +11,7 @@ iced = { version = "0.10", features = ["canvas", "tokio", "image"] }
 tokio = { version = "1.0", features = ["time"] }
 bedrock-client = { git = "https://github.com/ismaileke/bedrock-client.git", branch = "master" }
 chrono = "0.4"
-open = "3.2"
+open = "5.3"
 winapi = { version = "0.3", features = ["winuser"] }
 
 # Windows build için gerekli
