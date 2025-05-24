@@ -1,2 +1,24 @@
-# bedrock-packet-viewer
-Tool to view the details of packages from Bedrock servers
+<div align="center">
+    
+# 🦀 Bedrock Packet Viewer
+
+[![latest release](https://shields.io/github/v/release/ismaileke/bedrock-packet-viewer)](https://github.com/ismaileke/bedrock-packet-viewer/releases/latest)
+![GitHub License](https://img.shields.io/github/license/ismaileke/bedrock-packet-viewer)
+![GitHub Downloads](https://img.shields.io/github/downloads/ismaileke/bedrock-packet-viewer/total)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ismaileke/bedrock-packet-viewer/rust.yml)
+
+</div>
+
+## ⚙️ Demo
+<div align="center">
+    
+![bedrock-packet-viewer](https://github.com/user-attachments/assets/7de7d6ac-9235-45ad-a8ed-2a90514237d5)
+
+</div>
+
+
+
+> [!NOTE]
+> This project was prepared with the support of AI in general.
+>
+> More features will be added over time.
