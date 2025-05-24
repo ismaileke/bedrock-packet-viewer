@@ -11,8 +11,8 @@
 
 ## ⚙️ Demo
 <div align="center">
-    
-![bedrock-packet-viewer](https://github.com/user-attachments/assets/7de7d6ac-9235-45ad-a8ed-2a90514237d5)
+
+![bedrock-packet-viewer](https://github.com/user-attachments/assets/d370f860-b8ed-471b-b234-f54a7d4a6c23)
 
 </div>
 
