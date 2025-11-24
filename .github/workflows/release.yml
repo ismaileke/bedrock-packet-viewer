@@ -22,13 +22,12 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
       
-      # OpenSSL kur (Windows için)
-      - name: Install OpenSSL
+      # vcpkg ile OpenSSL kur
+      - name: Install OpenSSL with vcpkg
         run: |
-          choco install openssl -y
-          echo "OPENSSL_DIR=C:\Program Files\OpenSSL" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=C:\Program Files\OpenSSL\lib" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=C:\Program Files\OpenSSL\include" >> $env:GITHUB_ENV
+          vcpkg install openssl:x64-windows-static
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+          echo "VCPKGRS_DYNAMIC=0" >> $env:GITHUB_ENV
       
       # Cache dependencies (opsiyonel ama hızlandırır)
       - name: Cache cargo registry
@@ -43,6 +42,8 @@ jobs:
       # Build release exe
       - name: Build release executable
         run: cargo build --release --verbose
+        env:
+          VCPKG_ROOT: C:\vcpkg
       
       # Release oluştur ve dosya yükle (softprops/action-gh-release güncel)
       - name: Create Release and Upload Asset
