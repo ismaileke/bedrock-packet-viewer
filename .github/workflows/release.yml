@@ -4,46 +4,47 @@ on:
   push:
     tags:
       - 'v*'  # Sadece v ile başlayan tag'lerde çalışacak (ör: v1.0.0)
-  workflow_dispatch: # manuel tetikleme de mümkün
+  workflow_dispatch: # manuel tetikleme
 
 jobs:
   build-and-release:
     runs-on: windows-latest
-
+    
+    permissions:
+      contents: write  # Release oluşturmak için gerekli
+    
     steps:
-      # Repo’yu checkout et
+      # Repo'yu checkout et
       - name: Checkout repository
-        uses: actions/checkout@v3
-
-      # Rust kur
+        uses: actions/checkout@v4
+      
+      # Rust kur (dtolnay/rust-toolchain en güncel)
       - name: Setup Rust
-        uses: actions-rs/setup-rust@v1
+        uses: dtolnay/rust-toolchain@stable
+      
+      # Cache dependencies (opsiyonel ama hızlandırır)
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
-          rust-version: stable
-
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
       # Build release exe
       - name: Build release executable
-        run: cargo build --release
-
-      # Release oluştur
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # otomatik token
+        run: cargo build --release --verbose
+      
+      # Release oluştur ve dosya yükle (softprops/action-gh-release güncel)
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}           # pushlanan tag
-          release_name: Release ${{ github.ref_name }}
+          files: target/release/bedrock_packet_viewer.exe
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-
-      # EXE dosyasını release’e yükle
-      - name: Upload executable
-        uses: actions/upload-release-asset@v1
+          generate_release_notes: true  # Otomatik release notları
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: target/release/bedrock_packet_viewer.exe  # exe’nin yolu
-          asset_name: bedrock_packet_viewer.exe
-          asset_content_type: application/octet-stream
