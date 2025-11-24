@@ -1,0 +1,46 @@
+name: Rust Release
+
+# Workflow tetikleyicisi
+on:
+  push:
+    tags:
+      - 'v*'  # Sadece v ile başlayan tag’lerde çalışacak (ör: v1.0.0)
+  workflow_dispatch: # manuel tetikleme de mümkün
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Rust
+        uses: actions/setup-rust@v2
+        with:
+          rust-version: stable
+
+      - name: Build release executable
+        run: cargo build --release
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
+      # EXE dosyasını release’e yükle
+      - name: Upload executable
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: target/release/bedrock_packet_viewer.exe  # exe’nin yolu
+          asset_name: bedrock_packet_viewer
+          asset_content_type: application/octet-stream
