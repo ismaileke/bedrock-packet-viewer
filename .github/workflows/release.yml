@@ -17,7 +17,7 @@ jobs:
 
       # Rust kur
       - name: Setup Rust
-        uses: rust-lang/setup-rust@v1
+        uses: actions-rs/setup-rust@v1
         with:
           rust-version: stable
 
