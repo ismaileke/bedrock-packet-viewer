@@ -1,5 +1,7 @@
 #![windows_subsystem = "windows"]
 
+use std::io;
+use std::net::{SocketAddr, ToSocketAddrs};
 use iced::{
     widget::{button, column, container, row, text, Image, scrollable, text_input, Column},
     Application, Command, Element, Length, Settings, Theme, Background, Color, Vector, Subscription,
@@ -439,53 +441,64 @@ impl Application for PacketViewer {
                 let tx = self.tx.clone().unwrap();
                 let logs = self.connection_logs.clone();
 
-                if let Some(runtime) = &self.runtime {
-                    runtime.spawn(async move {
-                        match client::create(
-                            server_ip.clone(),
-                            server_port,
-                            "1.21.124".to_string(),
-                            false,
-                            {
-                                let tx = tx.clone();
-                                let logs = logs.clone();
-                                move |code: &str, url: &str| {
-                                    let message = format!("Auth Code: {} URL: {}", code, url);
-                                    if let Ok(mut logs) = logs.lock() {
-                                        logs.clear();
-                                        logs.push(message.clone());
+                let hostname = server_ip.trim();
+                match lookup_host(hostname) {
+                    Ok(addrs) => {
+                        for addr in addrs {
+                            if let Some(runtime) = &self.runtime {
+                                runtime.spawn(async move {
+                                    match client::create(
+                                        addr.ip().to_string(),
+                                        server_port,
+                                        "1.21.124".to_string(),
+                                        false,
+                                        {
+                                            let tx = tx.clone();
+                                            let logs = logs.clone();
+                                            move |code: &str, url: &str| {
+                                                let message = format!("Auth Code: {} URL: {}", code, url);
+                                                if let Ok(mut logs) = logs.lock() {
+                                                    logs.clear();
+                                                    logs.push(message.clone());
+                                                }
+                                                let _ = tx.send(Message::ConnectionError(message));
+                                            }
+                                        }
+                                    ).await {
+                                        Some(mut client) => {
+                                            let tx_packets = tx.clone();
+
+                                            client.set_packet_callback(move |packet_name, packet| {
+                                                let packet_name = packet_name.to_string();
+                                                let packet_detail = packet.as_json();
+                                                let tx = tx_packets.clone();
+
+                                                tokio::spawn(async move {
+                                                    let msg = Message::PacketReceived(
+                                                        packet_name,
+                                                        packet_detail
+                                                    );
+
+                                                    let _ = tx.send(msg);
+                                                });
+                                            });
+
+                                            if let Err(e) = client.connect() {
+                                                let _ = tx.send(Message::ConnectionError(format!("Connection error: {}", e)));
+                                            }
+                                        }
+                                        None => {
+                                            let _ = tx.send(Message::ConnectionError("Failed to create client".to_string()));
+                                        }
                                     }
-                                    let _ = tx.send(Message::ConnectionError(message));
-                                }
-                            }
-                        ).await {
-                            Some(mut client) => {
-                                let tx_packets = tx.clone();
-
-                                client.set_packet_callback(move |packet_name, packet| {
-                                    let packet_name = packet_name.to_string();
-                                    let packet_detail = packet.as_json();
-                                    let tx = tx_packets.clone();
-
-                                    tokio::spawn(async move {
-                                        let msg = Message::PacketReceived(
-                                            packet_name,
-                                            packet_detail
-                                        );
-
-                                        let _ = tx.send(msg);
-                                    });
                                 });
-
-                                if let Err(e) = client.connect() {
-                                    let _ = tx.send(Message::ConnectionError(format!("Connection error: {}", e)));
-                                }
                             }
-                            None => {
-                                let _ = tx.send(Message::ConnectionError("Failed to create client".to_string()));
-                            }
+                            break;
                         }
-                    });
+                    },
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                    }
                 }
 
                 Command::none()
@@ -1568,4 +1581,8 @@ async fn main() -> iced::Result {
     let app = PacketViewer::run(settings);
 
     app
+}
+
+fn lookup_host(hostname: &str) -> io::Result<Vec<SocketAddr>> {
+    (hostname, 0).to_socket_addrs().map(|addrs| addrs.collect())
 }
