@@ -12,6 +12,7 @@ tokio = { version = "1.0", features = ["time"] }
 bedrock-client = { git = "https://github.com/ismaileke/bedrock-client.git", branch = "master" }
 chrono = "0.4"
 open = "5.3.3"
+serde_json = "1.0.145"
 
 # Windows build için gerekli
 [build-dependencies]

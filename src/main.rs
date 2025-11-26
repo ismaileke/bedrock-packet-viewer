@@ -10,6 +10,7 @@ use iced::widget::canvas::{self, Cache, Canvas, Fill, Geometry, LineCap, Path, P
 use iced::mouse::Cursor;
 use bedrock_client::client;
 use std::sync::{Arc, Mutex};
+use serde_json::Value;
 
 const LOGO_BYTES: &[u8] = include_bytes!("assets/logo.png");
 const PACKETS_ICON: &[u8] = include_bytes!("assets/packets.png");
@@ -250,7 +251,96 @@ struct Packet {
     packet_type: String,
     content: String,
     timestamp: String,
+    json_tree: Option<JsonTreeNode>,
 }
+
+
+#[derive(Debug, Clone)]
+struct JsonTreeNode {
+    key: String,
+    value: JsonValue,
+    expanded: bool,
+    children: Vec<JsonTreeNode>,
+}
+
+#[derive(Debug, Clone)]
+enum JsonValue {
+    String(String),
+    Number(f64),
+    Bool(bool),
+    Null,
+    Object,
+    Array(usize),
+}
+
+impl JsonTreeNode {
+    fn from_json(key: String, value: &Value) -> Self {
+        match value {
+            Value::Object(map) => {
+                let children: Vec<JsonTreeNode> = map
+                    .iter()
+                    .map(|(k, v)| JsonTreeNode::from_json(k.clone(), v))
+                    .collect();
+
+                JsonTreeNode {
+                    key,
+                    value: JsonValue::Object,
+                    expanded: false,
+                    children,
+                }
+            }
+            Value::Array(arr) => {
+                let children: Vec<JsonTreeNode> = arr
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| JsonTreeNode::from_json(format!("[{}]", i), v))
+                    .collect();
+
+                JsonTreeNode {
+                    key,
+                    value: JsonValue::Array(arr.len()),
+                    expanded: false,
+                    children,
+                }
+            }
+            Value::String(s) => JsonTreeNode {
+                key,
+                value: JsonValue::String(s.clone()),
+                expanded: false,
+                children: Vec::new(),
+            },
+            Value::Number(n) => JsonTreeNode {
+                key,
+                value: JsonValue::Number(n.as_f64().unwrap_or(0.0)),
+                expanded: false,
+                children: Vec::new(),
+            },
+            Value::Bool(b) => JsonTreeNode {
+                key,
+                value: JsonValue::Bool(*b),
+                expanded: false,
+                children: Vec::new(),
+            },
+            Value::Null => JsonTreeNode {
+                key,
+                value: JsonValue::Null,
+                expanded: false,
+                children: Vec::new(),
+            },
+        }
+    }
+
+    fn toggle_expand(&mut self, path: &[usize]) {
+        if path.is_empty() {
+            self.expanded = !self.expanded;
+        } else if let Some(index) = path.first() {
+            if let Some(child) = self.children.get_mut(*index) {
+                child.toggle_expand(&path[1..]);
+            }
+        }
+    }
+}
+
 
 #[derive(Debug, Clone)]
 struct PacketStats {
@@ -326,6 +416,7 @@ enum Message {
     UpdatePackets,
     ToggleCapture,
     FilterChanged(String),
+    TreeNodeToggled(usize, Vec<usize>),
 }
 
 impl Application for PacketViewer {
@@ -516,7 +607,7 @@ impl Application for PacketViewer {
                 self.connected = true;
                 Command::none()
             },
-            Message::PacketReceived(packet_type, content) => {
+            /*Message::PacketReceived(packet_type, content) => {
                 if self.capturing {
                     let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
                     let new_packet = Packet {
@@ -533,7 +624,7 @@ impl Application for PacketViewer {
                 } else {
                     Command::none()
                 }
-            },
+            },*/
             Message::UpdatePackets => {
                 Command::none()
             },
@@ -592,6 +683,41 @@ impl Application for PacketViewer {
                 self.filter_text = filter;
                 Command::none()
             },
+            Message::TreeNodeToggled(packet_index, path) => {
+                if let Some(packet) = self.packets.get_mut(packet_index) {
+                    if let Some(ref mut tree) = packet.json_tree {
+                        tree.toggle_expand(&path);
+                    }
+                }
+                Command::none()
+            }
+            Message::PacketReceived(packet_type, content) => {
+                if self.capturing {
+                    let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+
+                    let json_tree = if let Ok(json_value) = serde_json::from_str::<Value>(&content) {
+                        Some(JsonTreeNode::from_json("Packet Content".to_string(), &json_value))
+                    } else {
+                        None
+                    };
+
+                    let new_packet = Packet {
+                        name: format!("{}", self.packets.len() + 1),
+                        packet_type: packet_type.clone(),
+                        content,
+                        timestamp,
+                        json_tree,
+                    };
+
+                    self.packets.insert(0, new_packet);
+                    self.active_menu = MenuType::Packets;
+                    Command::batch(vec![
+                        Command::perform(async {}, |_| Message::UpdatePackets)
+                    ])
+                } else {
+                    Command::none()
+                }
+            }
         }
     }
 
@@ -819,7 +945,7 @@ impl PacketViewer {
                         .style(iced::theme::Button::Custom(Box::new(ButtonStyle { 
                             is_selected: false,
                             theme: self.theme.clone(),
-                            disabled: false  // Add this
+                            disabled: false
                         })))
                     ]
                     .spacing(10)
@@ -902,7 +1028,7 @@ impl PacketViewer {
                         .style(iced::theme::Button::Custom(Box::new(ButtonStyle {
                             is_selected: false,
                             theme: self.theme.clone(),
-                            disabled: false  // Add this
+                            disabled: false
                         })))
                         .width(Length::Fixed(150.0))
                         .on_press(Message::Connect)
@@ -1090,22 +1216,37 @@ impl PacketViewer {
                                         ];
 
                                         if Some(i) == self.selected_packet {
-                                            packet_content = packet_content.push(
+                                            let details_content: Element<Message> = if let Some(ref tree) = packet.json_tree {
                                                 container(
-                                                    column![
-                                                        text("  --Packet Details--  ").size(16),
-                                                        text(format!(" - Packet Sequence: {}\n", packet.name)).size(14),
-                                                        text(format!(" - Packet Details: {}\n", packet.content)).size(14)
-                                                    ]
-                                                    .spacing(5)
+                                                scrollable(
+                                                    self.render_tree_node(tree, i, vec![], 0)
                                                 )
-                                                .padding(10)
-                                                .style(iced::theme::Container::Custom(Box::new(DetailContainer {
-                                                    theme: self.theme.clone()
-                                                })))
-                                            );
-                                        }
+                                                .width(Length::Fill)
+                                                .height(Length::Fixed(200.0))
+                                            )
+                                            .into()
+                                        } else {
+                                            container(
+                                                text(format!(" - Packet Details: {:#?}\n", packet.content))
+                                                .size(14)
+                                            )
+                                            .into()
+                                        };
 
+                                        packet_content = packet_content.push(
+                                            container(
+                                                column![
+                                                    text(format!("Packet sequence : {}\n", packet.name)).size(14),
+                                                    details_content
+                                                ]
+                                                .spacing(5)
+                                            )
+                                            .padding(10)
+                                            .style(iced::theme::Container::Custom(Box::new(DetailContainer {
+                                                theme: self.theme.clone()
+                                            })))
+                                        );
+                                    }
                                         packet_content.into()
                                     }).collect()
                             )
@@ -1262,7 +1403,6 @@ impl PacketViewer {
                     theme: self.theme.clone() 
                 }))),
 
-                // Spacer
                 container(text("")).height(Length::Fill),
             ]
                 .spacing(20)
@@ -1274,6 +1414,88 @@ impl PacketViewer {
             .height(Length::Fill)
             .padding(20)
             .into()
+    }
+
+    fn render_tree_node<'a>(
+        &self,
+        node: &'a JsonTreeNode,
+        packet_index: usize,
+        path: Vec<usize>,
+        depth: usize,
+    ) -> Element<'a, Message> {
+        let indent = depth * 20;
+
+        let has_children = !node.children.is_empty();
+        let expand_icon = if has_children {
+            if node.expanded { "v" } else { ">" }
+        } else {
+            " "
+        };
+
+        let value_text = match &node.value {
+            JsonValue::String(s) => format!(": \"{}\"", s),
+            JsonValue::Number(n) => format!(": {}", n),
+            JsonValue::Bool(b) => format!(": {}", b),
+            JsonValue::Null => ": null".to_string(),
+            JsonValue::Object => " { }".to_string(),
+            JsonValue::Array(size) => format!(" [{} items]", size),
+        };
+
+        let key_color = if self.theme == ThemeType::Dark {
+            Color::from_rgb(0.6, 0.8, 1.0)
+        } else {
+            Color::from_rgb(0.2, 0.4, 0.8)
+        };
+
+        let value_color = match &node.value {
+            JsonValue::String(_) => Color::from_rgb(0.8, 0.6, 0.4),
+            JsonValue::Number(_) => Color::from_rgb(0.6, 0.8, 0.6),
+            JsonValue::Bool(_) => Color::from_rgb(0.8, 0.6, 0.8),
+            JsonValue::Null => Color::from_rgb(0.6, 0.6, 0.6),
+            _ => if self.theme == ThemeType::Dark {
+                Color::WHITE
+            } else {
+                Color::BLACK
+            },
+        };
+
+        let mut content = column![];
+
+        let node_row = row![
+            container(text("")).width(Length::Fixed(indent as f32)),
+            button(
+                text(expand_icon).size(12)
+            )
+            .style(iced::theme::Button::Text)
+            .on_press_maybe(if has_children {
+                Some(Message::TreeNodeToggled(packet_index, path.clone()))
+            } else {
+                None
+            })
+            .width(Length::Fixed(20.0)),
+            text(&node.key)
+                .size(14)
+                .style(key_color),
+            text(&value_text)
+                .size(14)
+                .style(value_color),
+        ]
+            .spacing(5)
+            .align_items(iced::Alignment::Center);
+
+        content = content.push(node_row);
+
+        if node.expanded && has_children {
+            for (index, child) in node.children.iter().enumerate() {
+                let mut child_path = path.clone();
+                child_path.push(index);
+                content = content.push(
+                    self.render_tree_node(child, packet_index, child_path, depth + 1)
+                );
+            }
+        }
+
+        content.into()
     }
 }
 
