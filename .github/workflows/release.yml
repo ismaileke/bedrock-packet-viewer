@@ -3,40 +3,23 @@ name: Rust Release
 on:
   push:
     tags:
-      - 'v*'  # Sadece v ile başlayan tag'lerde çalışacak (ör: v1.0.0)
-  workflow_dispatch: # manuel tetikleme
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-and-release:
     runs-on: windows-latest
     
     permissions:
-      contents: write  # Release oluşturmak için gerekli
+      contents: write
     
     steps:
-      # Repo'yu checkout et
       - name: Checkout repository
         uses: actions/checkout@v4
       
       # Rust kur (dtolnay/rust-toolchain en güncel)
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-      
-      # vcpkg ile OpenSSL kur
-      - name: Install OpenSSL with vcpkg
-        run: |
-          vcpkg integrate install
-          vcpkg install openssl:x64-windows-static
-      
-      # OpenSSL path'lerini set et
-      - name: Set OpenSSL paths
-        run: |
-          $openssl_dir = "C:\vcpkg\installed\x64-windows-static"
-          echo "OPENSSL_DIR=$openssl_dir" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$openssl_dir\lib" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$openssl_dir\include" >> $env:GITHUB_ENV
-          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
-          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
       
       # Cache dependencies (opsiyonel ama hızlandırır)
       - name: Cache cargo registry
@@ -61,6 +44,6 @@ jobs:
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-          generate_release_notes: true  # Otomatik release notları
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
