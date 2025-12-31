@@ -14,16 +14,6 @@ chrono = "0.4"
 open = "5.3.3"
 serde_json = "1.0.145"
 
-# Windows build için gerekli
-[build-dependencies]
-winres = "0.1"
-
+# Sadece Windows'ta icon & metadata için
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
-
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser", "wincon", "processenv", "shellapi"] }
-
-# Windows konsolu gizlemek için
-[target.'cfg(windows)']
-rustflags = ["-C", "link-args=-mwindows"]
