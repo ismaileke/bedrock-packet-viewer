@@ -10,7 +10,7 @@ jobs:
   build-and-release:
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
 
     runs-on: ${{ matrix.os }}
 
@@ -33,7 +33,7 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      # Linux için iced bağımlılıkları
+      # Linux için iced sistem bağımlılıkları
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -48,24 +48,52 @@ jobs:
       - name: Build release
         run: cargo build --release
 
-      # Windows exe upload
+      # Windows binary rename + upload
       - name: Upload Windows binary
+        if: matrix.os == 'windows-latest'
+        run: |
+          cp target/release/bedrock_packet_viewer.exe bedrock_packet_viewer-windows.exe
+        shell: bash
+
+      - name: Release Windows asset
         if: matrix.os == 'windows-latest'
         uses: softprops/action-gh-release@v1
         with:
-          files: target/release/bedrock_packet_viewer.exe
+          files: bedrock_packet_viewer-windows.exe
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Linux binary upload
+      # Linux binary rename + upload
       - name: Upload Linux binary
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cp target/release/bedrock_packet_viewer bedrock_packet_viewer-linux
+          chmod +x bedrock_packet_viewer-linux
+
+      - name: Release Linux asset
         if: matrix.os == 'ubuntu-latest'
         uses: softprops/action-gh-release@v1
         with:
-          files: target/release/bedrock_packet_viewer
+          files: bedrock_packet_viewer-linux
+          tag_name: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # macOS binary rename + upload
+      - name: Upload macOS binary
+        if: matrix.os == 'macos-latest'
+        run: |
+          cp target/release/bedrock_packet_viewer bedrock_packet_viewer-macos
+          chmod +x bedrock_packet_viewer-macos
+
+      - name: Release macOS asset
+        if: matrix.os == 'macos-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: bedrock_packet_viewer-macos
           tag_name: ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
