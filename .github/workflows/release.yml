@@ -8,21 +8,23 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: windows-latest
-    
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      # Rust kur (dtolnay/rust-toolchain en güncel)
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-      
-      # Cache dependencies (opsiyonel ama hızlandırır)
-      - name: Cache cargo registry
+
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -30,20 +32,40 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      
-      # Build release exe
-      - name: Build release executable
-        run: cargo build --release --verbose
-      
-      # Release oluştur ve dosya yükle (softprops/action-gh-release güncel)
-      - name: Create Release and Upload Asset
+
+      # Linux için iced bağımlılıkları
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libx11-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libegl1-mesa-dev \
+            libgl1-mesa-dev
+
+      - name: Build release
+        run: cargo build --release
+
+      # Windows exe upload
+      - name: Upload Windows binary
+        if: matrix.os == 'windows-latest'
         uses: softprops/action-gh-release@v1
         with:
           files: target/release/bedrock_packet_viewer.exe
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
           generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Linux binary upload
+      - name: Upload Linux binary
+        if: matrix.os == 'ubuntu-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/release/bedrock_packet_viewer
+          tag_name: ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
